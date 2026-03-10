@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>CoverIt — Bills due. Let's hustle.</title>
+  <meta name="description" content="CoverIt helps you track bills and find gig work to cover what you owe." />
+  <meta name="theme-color" content="#0A0A0F" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0A0A0F; font-family: Georgia, serif; }
+    #root { min-height: 100vh; }
+    input::placeholder { color: #6B6B80; }
+    input { color-scheme: dark; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0A0A0F; }
+    ::-webkit-scrollbar-thumb { background: #1E1E2E; border-radius: 99px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const C = {
+      bg: "#0A0A0F", card: "#13131A", border: "#1E1E2E",
+      accent: "#FF5C00", accentDim: "#FF5C0022",
+      green: "#00E676", greenDim: "#00E67622",
+      yellow: "#FFD600", yellowDim: "#FFD60022",
+      red: "#FF3D57", redDim: "#FF3D5722",
+      white: "#FFFFFF", muted: "#6B6B80", subtle: "#1E1E2E",
+    };
+    const S = { serif: "Georgia, serif", mono: "monospace" };
+
+    // ── Affiliate Links ──────────────────────────────────────
+    // TODO: Replace each signupUrl with your personal affiliate
+    // link once approved on impact.com and ShareASale.
+    const GIGS = [
+      { id: "doordash",   name: "DoorDash",   icon: "🚗", req: "Car required",  hourly: "$15–22/hr", time: "Same day",  category: "delivery",  commission: "~$20/referral",       signupUrl: "https://apply.doordash.com/dasher/us" },
+      { id: "uber",       name: "Uber Eats",  icon: "🛵", req: "Car or bike",   hourly: "$13–20/hr", time: "Same day",  category: "delivery",  commission: "Per signup + trips",   signupUrl: "https://www.uber.com/us/en/drive/" },
+      { id: "instacart",  name: "Instacart",  icon: "🛒", req: "Car required",  hourly: "$12–18/hr", time: "Same day",  category: "delivery",  commission: "Per new shopper",     signupUrl: "https://www.instacart.com/shoppers" },
+      { id: "rover",      name: "Rover",      icon: "🐕", req: "Love animals",  hourly: "$15–25/hr", time: "1–3 days", category: "pets",      commission: "$50/new sitter",      signupUrl: "https://www.rover.com/become-a-dog-sitter/" },
+      { id: "taskrabbit", name: "TaskRabbit", icon: "🔧", req: "Any skill",     hourly: "$20–60/hr", time: "1–2 days", category: "tasks",     commission: "$10–20/Tasker",       signupUrl: "https://www.taskrabbit.com/become-a-tasker" },
+      { id: "fiverr",     name: "Fiverr",     icon: "💻", req: "Digital skill", hourly: "$10–50/hr", time: "Varies",   category: "freelance", commission: "Up to $150/referral", signupUrl: "https://www.fiverr.com/sell" },
+    ];
+
+    const catIcon = (c) => ({ housing: "🏠", utilities: "⚡", insurance: "🛡️", phone: "📱", subscription: "📺", food: "🍔", transport: "🚗" }[c] ?? "💳");
+    const daysUntil = (day) => { const d = day - new Date().getDate(); return d < 0 ? d + 30 : d; };
+    const urgColor = (d) => d <= 3 ? C.red : d <= 7 ? C.yellow : C.green;
+    const urgBg    = (d) => d <= 3 ? C.redDim : d <= 7 ? C.yellowDim : C.greenDim;
+    const urgLabel = (d) => d <= 3 ? "🔴 Urgent" : d <= 7 ? "🟡 Soon" : "🟢 OK";
+
+    const Pill = ({ children, color = C.accent }) => (
+      <div style={{ display: "inline-block", background: color + "22", border: `1px solid ${color}`, borderRadius: 20, padding: "2px 10px", fontSize: 10, color, fontFamily: S.mono, letterSpacing: "1px" }}>{children}</div>
+    );
+
+    const Btn = ({ children, onClick, color = C.accent, textColor = "#fff", style = {} }) => (
+      <button onClick={onClick} style={{ background: color, border: "none", borderRadius: 12, padding: "13px 20px", color: textColor, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: S.serif, width: "100%", ...style }}>{children}</button>
+    );
+
+    function WelcomeScreen({ onStart }) {
+      return (
+        <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 400, textAlign: "center" }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>⚡</div>
+            <div style={{ fontSize: 44, fontWeight: 900, color: C.white, letterSpacing: "-3px", lineHeight: 1, marginBottom: 8 }}>
+              Cover<span style={{ color: C.accent }}>It</span>
+            </div>
+            <div style={{ fontSize: 13, color: C.muted, letterSpacing: "3px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 32 }}>Bills due. Let's hustle.</div>
+
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, marginBottom: 24, textAlign: "left" }}>
+              {[["📋","Track every bill","Know exactly what's due and when"],["💼","Get matched to gigs","Find side work that fits your skills"],["💰","Log your earnings","Watch the gap close in real time"],["🔓","Bill tracking is free","Gig matching + earnings tracker for $1.99/mo"]].map(([icon, title, desc]) => (
+                <div key={title} style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "flex-start" }}>
+                  <div style={{ fontSize: 22, marginTop: 2 }}>{icon}</div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{title}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Btn onClick={onStart}>Get Started — It's Free →</Btn>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 16, lineHeight: 1.8, fontFamily: S.mono }}>
+              By continuing you agree to our <span style={{ color: C.accent }}>Terms of Service</span> and <span style={{ color: C.accent }}>Privacy Policy</span>.<br/>
+              CoverIt is not a financial advisor. Gig earnings vary by location and effort.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function OnboardingScreen({ onComplete }) {
+      const [step, setStep] = useState(0);
+      const [answers, setAnswers] = useState({});
+      const questions = [
+        { key: "hasCar",  q: "Do you have a car?",         options: ["Yes, reliable car", "Yes, but older", "No car"] },
+        { key: "animals", q: "Comfortable with pets?",      options: ["Love animals!", "It's okay", "Not really"] },
+        { key: "skills",  q: "Any digital skills?",         options: ["Yes (design, writing, etc.)", "Basic computer skills", "Not really"] },
+        { key: "urgency", q: "How soon do you need money?", options: ["Today / Tomorrow", "This week", "Flexible"] },
+      ];
+      const current = questions[step];
+      const choose = (opt) => {
+        const next = { ...answers, [current.key]: opt };
+        setAnswers(next);
+        if (step < questions.length - 1) setStep(step + 1);
+        else onComplete(next);
+      };
+      return (
+        <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ marginBottom: 32, textAlign: "center" }}>
+            <div style={{ fontSize: 32, fontWeight: 900, color: C.white, letterSpacing: "-2px" }}>Cover<span style={{ color: C.accent }}>It</span></div>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 4, letterSpacing: "3px", textTransform: "uppercase", fontFamily: S.mono }}>Quick setup · {questions.length} questions</div>
+          </div>
+          <div style={{ width: "100%", maxWidth: 400 }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 28 }}>
+              {questions.map((_, i) => <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i <= step ? C.accent : C.border, transition: "background 0.3s" }} />)}
+            </div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28 }}>
+              <div style={{ fontSize: 11, color: C.muted, letterSpacing: "2px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 10 }}>Question {step + 1} of {questions.length}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: C.white, marginBottom: 22, lineHeight: 1.3 }}>{current.q}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {current.options.map(opt => (
+                  <button key={opt} onClick={() => choose(opt)}
+                    style={{ background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 18px", color: C.white, fontSize: 15, cursor: "pointer", textAlign: "left", fontFamily: S.serif }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+                  >{opt}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Dashboard({ onNav, bills, earnings, isPro }) {
+      const unpaid = bills.filter(b => !b.paid);
+      const totalDue = unpaid.reduce((s, b) => s + b.amount, 0);
+      const gap = Math.max(0, totalDue - earnings);
+      const pct = totalDue > 0 ? Math.min(100, Math.round((earnings / totalDue) * 100)) : 100;
+      const urgent = [...unpaid].sort((a, b) => daysUntil(a.due) - daysUntil(b.due))[0];
+      return (
+        <div style={{ padding: "0 0 100px" }}>
+          <div style={{ padding: "32px 20px 16px", background: `linear-gradient(180deg, ${C.card} 0%, ${C.bg} 100%)` }}>
+            <div style={{ fontSize: 11, color: C.muted, letterSpacing: "3px", textTransform: "uppercase", fontFamily: S.mono }}>Welcome to</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: C.white, letterSpacing: "-2px" }}>Cover<span style={{ color: C.accent }}>It</span></div>
+          </div>
+          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {!isPro && (
+              <div onClick={() => onNav("gigs")} style={{ background: `linear-gradient(135deg, #1A0800, ${C.card})`, border: `1px solid ${C.accent}55`, borderRadius: 16, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>🔒 Unlock Gig Matching + Earnings</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Find side jobs to cover your bills · $1.99/mo</div>
+                </div>
+                <div style={{ color: C.accent, fontSize: 20 }}>→</div>
+              </div>
+            )}
+            <div style={{ background: gap > 0 ? `linear-gradient(135deg, #1A0800, ${C.card})` : `linear-gradient(135deg, #001A08, ${C.card})`, border: `1px solid ${gap > 0 ? C.accent : C.green}`, borderRadius: 20, padding: 22 }}>
+              <div style={{ fontSize: 11, color: gap > 0 ? C.accent : C.green, letterSpacing: "2px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 6 }}>{gap > 0 ? "⚡ Earnings Gap" : "✅ You're Covered"}</div>
+              <div style={{ fontSize: 52, fontWeight: 900, color: C.white, letterSpacing: "-3px", lineHeight: 1 }}>${gap.toLocaleString()}</div>
+              <div style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>{totalDue > 0 ? `$${earnings} earned · $${totalDue} due this month` : "Add your first bill to get started"}</div>
+              {totalDue > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ height: 6, background: C.border, borderRadius: 99, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: gap > 0 ? C.accent : C.green, borderRadius: 99 }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 6, fontFamily: S.mono }}>{pct}% of bills covered</div>
+                </div>
+              )}
+              {gap > 0 && isPro && <button onClick={() => onNav("gigs")} style={{ marginTop: 14, background: C.accent, border: "none", borderRadius: 10, padding: "11px 18px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Find Gigs to Cover It →</button>}
+            </div>
+            {urgent && (
+              <div style={{ background: C.card, border: `1px solid ${urgColor(daysUntil(urgent.due))}44`, borderRadius: 16, padding: 18 }}>
+                <div style={{ fontSize: 11, color: C.muted, letterSpacing: "2px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 10 }}>🔥 Most Urgent</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: C.white }}>{catIcon(urgent.category)} {urgent.name}</div>
+                    <div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>Due in {daysUntil(urgent.due)} days · {urgLabel(daysUntil(urgent.due))}</div>
+                  </div>
+                  <div style={{ background: urgBg(daysUntil(urgent.due)), border: `1px solid ${urgColor(daysUntil(urgent.due))}`, borderRadius: 10, padding: "6px 14px", color: urgColor(daysUntil(urgent.due)), fontWeight: 800, fontSize: 18 }}>${urgent.amount}</div>
+                </div>
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[["Bills Due", unpaid.length, "unpaid", C.yellow],["Total Owed", `$${totalDue}`, "this month", C.red],["Earned", `$${earnings}`, "logged", C.green],["Covered", `${pct}%`, "of bills", C.accent]].map(([label, value, sub, color]) => (
+                <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ fontSize: 11, color: C.muted, letterSpacing: "2px", textTransform: "uppercase", fontFamily: S.mono }}>{label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color, marginTop: 4, letterSpacing: "-1px" }}>{value}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{sub}</div>
+                </div>
+              ))}
+            </div>
+            {bills.length === 0 && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, textAlign: "center" }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.white, marginBottom: 6 }}>No bills added yet</div>
+                <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Start by adding what you owe this month</div>
+                <Btn onClick={() => onNav("bills")} style={{ width: "auto", padding: "10px 24px" }}>Add First Bill →</Btn>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function BillsScreen({ bills, setBills }) {
+      const [adding, setAdding] = useState(false);
+      const [form, setForm] = useState({ name: "", amount: "", due: "", category: "other" });
+      const categories = ["housing","utilities","insurance","phone","subscription","food","transport","other"];
+      const addBill = () => {
+        if (!form.name || !form.amount || !form.due) return;
+        setBills([...bills, { id: Date.now(), name: form.name, amount: Number(form.amount), due: Number(form.due), category: form.category, paid: false }]);
+        setForm({ name: "", amount: "", due: "", category: "other" });
+        setAdding(false);
+      };
+      const inputStyle = { display: "block", width: "100%", background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", color: C.white, fontSize: 14, marginBottom: 10, boxSizing: "border-box", fontFamily: S.serif, outline: "none" };
+      return (
+        <div style={{ padding: "28px 16px 100px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: C.white }}>Your Bills</div>
+              <div style={{ fontSize: 13, color: C.muted }}>Track what's coming due</div>
+            </div>
+            <button onClick={() => setAdding(!adding)} style={{ background: C.accent, border: "none", borderRadius: 10, padding: "10px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Add Bill</button>
+          </div>
+          {adding && (
+            <div style={{ background: C.card, border: `1px solid ${C.accent}`, borderRadius: 16, padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 14 }}>New Bill</div>
+              <input type="text" placeholder="Bill name (e.g. Rent)" value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={inputStyle} />
+              <input type="number" placeholder="Amount ($)" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} style={inputStyle} />
+              <input type="number" placeholder="Due date (day of month, e.g. 15)" value={form.due} onChange={e => setForm({...form, due: e.target.value})} style={{...inputStyle, marginBottom: 12}} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                {categories.map(cat => (
+                  <button key={cat} onClick={() => setForm({...form, category: cat})}
+                    style={{ background: form.category === cat ? C.accentDim : C.subtle, border: `1px solid ${form.category === cat ? C.accent : C.border}`, borderRadius: 8, padding: "6px 12px", color: form.category === cat ? C.accent : C.muted, fontSize: 12, cursor: "pointer", fontFamily: S.mono }}>
+                    {catIcon(cat)} {cat}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn onClick={addBill}>Save Bill</Btn>
+                <Btn onClick={() => setAdding(false)} color={C.subtle} textColor={C.muted}>Cancel</Btn>
+              </div>
+            </div>
+          )}
+          {bills.length === 0 && (
+            <div style={{ textAlign: "center", padding: "48px 20px", color: C.muted }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.white, marginBottom: 6 }}>No bills yet</div>
+              <div style={{ fontSize: 13 }}>Tap "+ Add Bill" to start tracking</div>
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[...bills].sort((a,b) => daysUntil(a.due)-daysUntil(b.due)).map(bill => {
+              const days = daysUntil(bill.due);
+              return (
+                <div key={bill.id} style={{ background: C.card, border: `1px solid ${bill.paid ? C.border : urgColor(days)+"44"}`, borderRadius: 14, padding: 16, opacity: bill.paid ? 0.55 : 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: 26 }}>{catIcon(bill.category)}</div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: C.white, textDecoration: bill.paid ? "line-through" : "none" }}>{bill.name}</div>
+                        <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{bill.paid ? "✓ Paid" : `Due in ${days} days · ${urgLabel(days)}`}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: bill.paid ? C.muted : urgColor(days) }}>${bill.amount}</div>
+                      <button onClick={() => setBills(bills.map(b => b.id===bill.id ? {...b,paid:!b.paid} : b))} style={{ background: bill.paid ? C.subtle : C.greenDim, border: `1px solid ${bill.paid ? C.border : C.green}`, borderRadius: 8, padding: "5px 10px", color: bill.paid ? C.muted : C.green, fontSize: 11, cursor: "pointer", fontFamily: S.mono }}>{bill.paid ? "Undo" : "Paid ✓"}</button>
+                      <button onClick={() => setBills(bills.filter(b => b.id!==bill.id))} style={{ background: "none", border: "none", color: C.muted, fontSize: 18, cursor: "pointer" }}>×</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function GigsScreen({ qualifications }) {
+      const hasCar = qualifications?.hasCar?.includes("car");
+      const likesAnimals = qualifications?.animals?.includes("Love");
+      const hasSkills = qualifications?.skills?.includes("design");
+      const needsFast = qualifications?.urgency?.includes("Today");
+      const matched = GIGS.filter(g => {
+        if (g.category === "delivery" && !hasCar) return false;
+        if (g.category === "pets" && !likesAnimals) return false;
+        if (g.category === "freelance" && !hasSkills) return false;
+        return true;
+      });
+      const others = GIGS.filter(g => !matched.includes(g));
+      const GigCard = ({ gig, isMatch }) => (
+        <div style={{ background: C.card, border: `1px solid ${isMatch ? C.accent+"55" : C.border}`, borderRadius: 14, padding: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 30 }}>{gig.icon}</div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.white }}>{gig.name}</div>
+                  {isMatch && <Pill>MATCH</Pill>}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>Requires: {gig.req}</div>
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.green }}>{gig.hourly}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>{gig.time}</div>
+              <div style={{ fontSize: 10, color: C.accent, marginTop: 3, fontFamily: S.mono }}>You earn: {gig.commission}</div>
+            </div>
+          </div>
+          <button onClick={() => window.open(gig.signupUrl, "_blank")} style={{ width: "100%", background: isMatch ? C.accent : C.subtle, border: `1px solid ${isMatch ? C.accent : C.border}`, borderRadius: 10, padding: "11px", color: isMatch ? "#fff" : C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            Sign Up for {gig.name} →
+          </button>
+        </div>
+      );
+      return (
+        <div style={{ padding: "28px 16px 100px" }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: C.white }}>Your Gig Matches</div>
+            <div style={{ fontSize: 13, color: C.muted }}>Based on your profile · {matched.length} matched</div>
+          </div>
+          {needsFast && <div style={{ background: C.accentDim, border: `1px solid ${C.accent}`, borderRadius: 12, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: C.accent, fontFamily: S.mono }}>⚡ You need money fast — prioritize same-day gigs below</div>}
+          {matched.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>{matched.map(g => <GigCard key={g.id} gig={g} isMatch={true} />)}</div>}
+          {others.length > 0 && <>
+            <div style={{ fontSize: 11, color: C.muted, letterSpacing: "2px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 12 }}>Other Options</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{others.map(g => <GigCard key={g.id} gig={g} isMatch={false} />)}</div>
+          </>}
+          <div style={{ marginTop: 24, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, fontSize: 12, color: C.muted, lineHeight: 1.6, fontFamily: S.mono }}>
+            ⚠️ CoverIt is not affiliated with these platforms. Earnings estimates vary by location and effort. Always review each platform's terms before signing up.
+          </div>
+        </div>
+      );
+    }
+
+    function EarningsScreen({ earnings, setEarnings }) {
+      const [amount, setAmount] = useState("");
+      const [source, setSource] = useState("");
+      const [log, setLog] = useState([]);
+      const addEarning = () => {
+        if (!amount || !source) return;
+        const num = Number(amount);
+        if (isNaN(num) || num <= 0) return;
+        setLog([{ id: Date.now(), source, amount: num, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) }, ...log]);
+        setEarnings(prev => prev + num);
+        setAmount(""); setSource("");
+      };
+      const inputStyle = { display: "block", width: "100%", background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", color: C.white, fontSize: 14, marginBottom: 10, boxSizing: "border-box", fontFamily: S.serif, outline: "none" };
+      return (
+        <div style={{ padding: "28px 16px 100px" }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: C.white }}>Earnings Tracker</div>
+            <div style={{ fontSize: 13, color: C.muted }}>Log every dollar you make</div>
+          </div>
+          <div style={{ background: `linear-gradient(135deg, #001A08, ${C.card})`, border: `1px solid ${C.green}`, borderRadius: 20, padding: 24, marginBottom: 16, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: C.green, letterSpacing: "3px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 8 }}>Total Earned This Month</div>
+            <div style={{ fontSize: 60, fontWeight: 900, color: C.white, letterSpacing: "-3px", lineHeight: 1 }}>${earnings}</div>
+            {log.length > 0 && <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>{log.length} transaction{log.length !== 1 ? "s" : ""} logged</div>}
+          </div>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 14 }}>Log a Payment</div>
+            <input type="text" placeholder="Source (e.g. DoorDash, TaskRabbit)" value={source} onChange={e => setSource(e.target.value)} style={inputStyle} />
+            <input type="number" placeholder="Amount earned ($)" value={amount} onChange={e => setAmount(e.target.value)} style={{...inputStyle, marginBottom: 14}} />
+            <Btn onClick={addEarning} color={C.green} textColor="#000">+ Log Earning</Btn>
+          </div>
+          {log.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 20px", color: C.muted }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>💸</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.white, marginBottom: 4 }}>No earnings yet</div>
+              <div style={{ fontSize: 13 }}>Every dollar counts — log it above!</div>
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {log.map(entry => (
+              <div key={entry.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{entry.source}</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{entry.date}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.green }}>+${entry.amount}</div>
+                  <button onClick={() => { setLog(log.filter(e=>e.id!==entry.id)); setEarnings(p=>Math.max(0,p-entry.amount)); }} style={{ background: "none", border: "none", color: C.muted, fontSize: 18, cursor: "pointer" }}>×</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function PaywallScreen({ onSubscribe, onBack, feature }) {
+      const proFeatures = [
+        { icon: "💼", label: "Gig Matching", desc: "Personalized gig recommendations based on your skills" },
+        { icon: "💰", label: "Earnings Tracker", desc: "Log income and watch your bill gap close in real time" },
+        { icon: "🔔", label: "Bill Alerts", desc: "Push notifications before due dates (coming soon)" },
+        { icon: "📊", label: "Earnings Charts", desc: "Visualize your monthly income over time (coming soon)" },
+      ];
+      return (
+        <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <button onClick={onBack} style={{ position: "absolute", top: 24, left: 20, background: "none", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: S.mono }}>← Back</button>
+          <div style={{ width: "100%", maxWidth: 400 }}>
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>🔐</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: C.white, letterSpacing: "-1px" }}>Unlock <span style={{ color: C.accent }}>CoverIt</span> Pro</div>
+              <div style={{ fontSize: 14, color: C.muted, marginTop: 8 }}>{feature === "gigs" ? "Gig matching is a Pro feature." : "Earnings tracking is a Pro feature."} Less than a coffee per month.</div>
+            </div>
+            <div style={{ background: `linear-gradient(135deg, #1A0800, ${C.card})`, border: `1px solid ${C.accent}`, borderRadius: 20, padding: 24, marginBottom: 14, textAlign: "center" }}>
+              <div style={{ fontSize: 12, color: C.accent, letterSpacing: "3px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 8 }}>Pro Plan</div>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 2 }}>
+                <div style={{ fontSize: 22, color: C.white, marginTop: 10, fontWeight: 700 }}>$</div>
+                <div style={{ fontSize: 72, fontWeight: 900, color: C.white, lineHeight: 1, letterSpacing: "-4px" }}>1</div>
+                <div style={{ fontSize: 22, color: C.white, marginTop: 10, fontWeight: 700 }}>.99</div>
+              </div>
+              <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>per month · cancel anytime</div>
+            </div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: C.muted, letterSpacing: "2px", textTransform: "uppercase", fontFamily: S.mono, marginBottom: 14 }}>What you get</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {proFeatures.map(f => (
+                  <div key={f.label} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ fontSize: 20 }}>{f.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{f.label}</div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{f.desc}</div>
+                    </div>
+                    <div style={{ color: C.green, fontSize: 16 }}>✓</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", marginBottom: 18, fontSize: 12, color: C.muted, textAlign: "center" }}>
+              📋 <strong style={{ color: C.white }}>Bill tracking is always free.</strong> Upgrade when you're ready to start earning.
+            </div>
+            <Btn onClick={onSubscribe}>Subscribe for $1.99/mo →</Btn>
+            <div style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 10, fontFamily: S.mono }}>Secure payment · Cancel anytime · No hidden fees</div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [screen, setScreen] = useState("welcome");
+      const [qualifications, setQualifications] = useState(null);
+      const [bills, setBills] = useState([]);
+      const [earnings, setEarnings] = useState(0);
+      const [activeTab, setActiveTab] = useState("home");
+      const [isPro, setIsPro] = useState(false);
+      const [paywallFeature, setPaywallFeature] = useState(null);
+
+      const navTo = (tab) => {
+        if ((tab === "gigs" || tab === "earn") && !isPro) {
+          setPaywallFeature(tab); setScreen("paywall");
+        } else {
+          setActiveTab(tab); setScreen("main");
+        }
+      };
+
+      const tabs = [
+        { id: "home",  label: "Home",     icon: "⚡" },
+        { id: "bills", label: "Bills",    icon: "📋" },
+        { id: "gigs",  label: "Gigs",     icon: isPro ? "💼" : "🔒" },
+        { id: "earn",  label: "Earnings", icon: isPro ? "💰" : "🔒" },
+      ];
+
+      if (screen === "welcome") return <WelcomeScreen onStart={() => setScreen("onboarding")} />;
+      if (screen === "onboarding") return <OnboardingScreen onComplete={(a) => { setQualifications(a); setScreen("main"); }} />;
+      if (screen === "paywall") return <PaywallScreen feature={paywallFeature} onSubscribe={() => { setIsPro(true); setActiveTab(paywallFeature); setScreen("main"); }} onBack={() => setScreen("main")} />;
+
+      return (
+        <div style={{ minHeight: "100vh", background: C.bg, color: C.white, maxWidth: 430, margin: "0 auto", position: "relative" }}>
+          <div style={{ overflowY: "auto", height: "100vh", paddingBottom: 80 }}>
+            {activeTab === "home"  && <Dashboard onNav={navTo} bills={bills} earnings={earnings} isPro={isPro} />}
+            {activeTab === "bills" && <BillsScreen bills={bills} setBills={setBills} />}
+            {activeTab === "gigs"  && <GigsScreen qualifications={qualifications} />}
+            {activeTab === "earn"  && <EarningsScreen earnings={earnings} setEarnings={setEarnings} />}
+          </div>
+          <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: C.card, borderTop: `1px solid ${C.border}`, display: "flex", padding: "10px 0 18px" }}>
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => navTo(tab.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 0" }}>
+                <div style={{ fontSize: 20 }}>{tab.icon}</div>
+                <div style={{ fontSize: 9, color: activeTab === tab.id ? C.accent : C.muted, fontWeight: activeTab === tab.id ? 700 : 400, fontFamily: S.mono, letterSpacing: "1px", textTransform: "uppercase" }}>{tab.label}</div>
+                {activeTab === tab.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: C.accent, marginTop: 1 }} />}
+              </button>
+            ))}
+          </div>
+          {isPro && <div style={{ position: "fixed", top: 16, right: 16, background: C.accentDim, border: `1px solid ${C.accent}`, borderRadius: 20, padding: "4px 12px", fontSize: 10, color: C.accent, fontFamily: S.mono }}>PRO ✓</div>}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+
+</body>
+</html>
